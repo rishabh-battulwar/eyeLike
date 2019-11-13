@@ -6,6 +6,9 @@
 #include <queue>
 #include <stdio.h>
 #include <math.h>
+#include <memory>
+#include <string>
+#include <iomanip>
 
 #include "constants.h"
 #include "findEyeCenter.h"
@@ -36,14 +39,21 @@ cv::RNG rng(12345);
 cv::Mat debugImage;
 cv::Mat skinCrCbHist = cv::Mat::zeros(cv::Size(256, 256), CV_8UC1);
 
+// such a poor way to do things 
+std::string output_dir = "/var/tmp/dump";
+int counter = 0;
+cv::Mat frame;
+
 /**
  * @function main
  */
 int main( int argc, const char** argv ) {
-  cv::Mat frame;
+  // cv::Mat frame;
 
   // Load the cascades
   if( !face_cascade.load( face_cascade_name ) ){ printf("--(!)Error loading face cascade, please change face_cascade_name in source code.\n"); return -1; };
+
+#if !WRITE_OUT_IMAGES
   cv::namedWindow(main_window_name,CV_WINDOW_NORMAL);
   cv::moveWindow(main_window_name, 400, 100);
   cv::namedWindow(face_window_name,CV_WINDOW_NORMAL);
@@ -53,12 +63,12 @@ int main( int argc, const char** argv ) {
   cv::namedWindow("Left Eye",CV_WINDOW_NORMAL);
   cv::moveWindow("Left Eye", 10, 800);
 
-  /* As the matrix dichotomy will not be applied, these windows are useless.
+  // As the matrix dichotomy will not be applied, these windows are useless.
   cv::namedWindow("aa",CV_WINDOW_NORMAL);
   cv::moveWindow("aa", 10, 800);
   cv::namedWindow("aaa",CV_WINDOW_NORMAL);
-  cv::moveWindow("aaa", 10, 800);*/
-
+  cv::moveWindow("aaa", 10, 800);
+#endif
   createCornerKernels();
   ellipse(skinCrCbHist, cv::Point(113, 155), cv::Size(23, 15),
           43.0, 0.0, 360.0, cv::Scalar(255, 255, 255), -1);
@@ -70,7 +80,11 @@ int main( int argc, const char** argv ) {
     while( true ) {
       frame = cvQueryFrame( capture );
 #else
+#if WRITE_OUT_IMAGES
+  cv::VideoCapture capture(argv[1]);
+#else
   cv::VideoCapture capture(0);
+#endif
   if( capture.isOpened() ) {
     while( true ) {
       capture.read(frame);
@@ -78,6 +92,10 @@ int main( int argc, const char** argv ) {
       // mirror it
       cv::flip(frame, frame, 1);
       frame.copyTo(debugImage);
+
+#if WRITE_OUT_IMAGES
+      output_dir = std::string(argv[2]);
+#endif
 
       // Apply the classifier to the frame
       if( !frame.empty() ) {
@@ -88,7 +106,9 @@ int main( int argc, const char** argv ) {
         break;
       }
 
+#if !WRITE_OUT_IMAGES
       imshow(main_window_name,debugImage);
+#endif
 
       int c = cv::waitKey(10);
       if( (char)c == 'c' ) { break; }
@@ -170,16 +190,28 @@ void findEyes(cv::Mat frame_gray, cv::Rect face) {
     cv::Point2f rightRightCorner = findEyeCorner(faceROI(rightRightCornerRegion), false, false);
     rightRightCorner.x += rightRightCornerRegion.x;
     rightRightCorner.y += rightRightCornerRegion.y;
-    circle(faceROI, leftRightCorner, 3, 200);
-    circle(faceROI, leftLeftCorner, 3, 200);
-    circle(faceROI, rightLeftCorner, 3, 200);
-    circle(faceROI, rightRightCorner, 3, 200);
+    circle(faceROI, leftRightCorner, 3, 100);
+    circle(faceROI, leftLeftCorner, 3, 100);
+    circle(faceROI, rightLeftCorner, 3, 100);
+    circle(faceROI, rightRightCorner, 3, 100);
   }
 
+#if !WRITE_OUT_IMAGES
   imshow(face_window_name, faceROI);
+#endif
 //  cv::Rect roi( cv::Point( 0, 0 ), faceROI.size());
 //  cv::Mat destinationROI = debugImage( roi );
 //  faceROI.copyTo( destinationROI );
+
+#if WRITE_OUT_IMAGES
+  std::ostringstream output_path;
+  output_path << output_dir << "/detected/detect_" << std::setw(5) << std::setfill('0') << counter << ".png";
+  cv::resize(frame, frame, cv::Size(0,0), (1.0*faceROI.rows)/frame.rows, (1.0*faceROI.rows)/frame.rows);
+  cvtColor(frame, frame, cv::COLOR_RGB2GRAY);
+  cv::hconcat(faceROI, frame, faceROI);
+  cv::imwrite(output_path.str(), faceROI);
+  counter += 1;
+#endif
 }
 
 
@@ -210,7 +242,11 @@ cv::Mat findSkin (cv::Mat &frame) {
 void detectAndDisplay( cv::Mat frame ) {
   std::vector<cv::Rect> faces;
   //cv::Mat frame_gray;
-
+#if WRITE_OUT_IMAGES
+  std::ostringstream output_path;
+  output_path << output_dir << "/images/frame_" << std::setw(5) << std::setfill('0') << counter << ".png";
+  cv::imwrite(output_path.str(), frame);
+#endif
   std::vector<cv::Mat> rgbChannels(3);
   cv::split(frame, rgbChannels);
   cv::Mat frame_gray = rgbChannels[2];

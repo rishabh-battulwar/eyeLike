@@ -26,6 +26,9 @@ const bool kEnablePostProcess = true;
 const float kPostProcessThreshold = 0.97;
 
 // Eye Corner
-const bool kEnableEyeCorner = false;
+const bool kEnableEyeCorner = true;
+
+// Should write out images and turn off everything else
+#define WRITE_OUT_IMAGES 0
 
 #endif
